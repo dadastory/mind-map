@@ -4,13 +4,12 @@
     :title="$t('nodeImage.title')"
     :visible.sync="dialogVisible"
     :width="isMobile ? '90%' : '600px'"
-    :top="isMobile ? '20px' : '15vh'"
     @close="reset"
   >
     <el-button v-if="imagePicker" :loading="picking" @click="chooseHostImage">
       {{ imagePicker.label }}
     </el-button>
-    <div class="title">{{ imagePicker ? imagePicker.localLabel : '方式一' }}</div>
+    <div v-if="!img" class="title">{{ imagePicker ? imagePicker.localLabel : '方式一' }}</div>
     <ImgUpload
       ref="ImgUpload"
       v-model="img"
@@ -181,8 +180,33 @@ export default {
 
 <style lang="less" scoped>
 .nodeImageDialog {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+
+  ::v-deep .el-dialog {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    max-height: 100%;
+    margin: 0;
+  }
+
+  ::v-deep .el-dialog__body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  ::v-deep .el-dialog__header,
+  ::v-deep .el-dialog__footer {
+    flex-shrink: 0;
+  }
+
   .title {
-    font-size: 18px;
+    font-size: 14px;
+    margin-top: 12px;
     margin-bottom: 12px;
   }
 
