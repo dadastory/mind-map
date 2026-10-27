@@ -8,7 +8,7 @@
           @dragenter.stop.prevent
           @dragover.stop.prevent
           @drop.stop.prevent="onDrop"
-          >点击此处选择图片、或拖动图片到此</label
+          >{{ placeholder || '点击此处选择图片、或拖动图片到此' }}</label
         >
         <input
           type="file"
@@ -35,6 +35,10 @@ export default {
     event: 'change'
   },
   props: {
+    placeholder: {
+      type: String,
+      default: ''
+    },
     value: {
       type: String,
       default: ''

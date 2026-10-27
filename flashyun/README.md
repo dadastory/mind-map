@@ -47,3 +47,12 @@ Native node cooperation methods are installed independently of the first node
 creation timing. `addUser` creates its existing native SVG group lazily when
 Cooperate is attached later through the public `addPlugin` API. This keeps
 awareness selection/removal valid for nodes rendered before initial sync.
+
+## Optional host image selection
+
+The official NodeImage dialog accepts `takeOverAppMethods.imagePicker` with
+`pick()`, `cancel()` and localized labels. It retains local image upload, preview,
+title and native confirmation. Hosts return an embedded image data URL; the
+dialog keeps its target node IDs stable across selection changes and remote
+renders, and cancellation ignores late selections. Hosts without the hook keep
+the original local/URL workflow. No host service or credentials enter this fork.
