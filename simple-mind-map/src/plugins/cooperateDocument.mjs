@@ -89,6 +89,9 @@ function normalize(document, value) {
   const native = clone(typeof value === 'string' ? JSON.parse(value) : value)
   const result = native?.root ? native : { root: native }
   if (!object(result.root?.data)) throw new Error('invalid_document')
+  // Earlier host templates emitted an empty view, which native View cannot load.
+  if (object(result.view) && Object.keys(result.view).length === 0)
+    delete result.view
   const stack = [result.root]
   const seen = new Set()
   let serial = 0
