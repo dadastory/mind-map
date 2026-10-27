@@ -4,6 +4,7 @@
     :title="$t('nodeImage.title')"
     :visible.sync="dialogVisible"
     :width="isMobile ? '90%' : '600px'"
+    top="0"
     @close="reset"
   >
     <el-button v-if="imagePicker" :loading="picking" @click="chooseHostImage">
