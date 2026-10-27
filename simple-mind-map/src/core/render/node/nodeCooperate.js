@@ -83,6 +83,8 @@ function updateUserListNode() {
 
 // 添加用户
 function addUser(userInfo) {
+  // Nodes that predate a dynamically attached Cooperate plugin need its group.
+  if (!this._userListGroup) this.createUserListNode()
   if (
     this.userList.find(item => {
       return item.id == userInfo.id

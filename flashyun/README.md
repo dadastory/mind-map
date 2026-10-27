@@ -42,3 +42,8 @@ the pinned Web dependency. The takeover export exposes this same Cooperate class
 and pure codec to the iframe adapter. Historical/thumbnail instances do not
 attach the plugin. Build with the official Vue CLI through
 `packages/mind-map-editor/build-upstream.mjs` in the enclosing repository.
+
+Native node cooperation methods are installed independently of the first node
+creation timing. `addUser` creates its existing native SVG group lazily when
+Cooperate is attached later through the public `addPlugin` API. This keeps
+awareness selection/removal valid for nodes rendered before initial sync.

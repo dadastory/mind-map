@@ -143,12 +143,11 @@ class MindMapNode {
       Object.keys(nodeCreateContentsMethods).forEach(item => {
         proto[item] = nodeCreateContentsMethods[item]
       })
-      // 协同相关
-      if (this.mindMap.cooperate) {
-        Object.keys(nodeCooperateMethods).forEach(item => {
-          proto[item] = nodeCooperateMethods[item]
-        })
-      }
+      // The public addPlugin API can attach Cooperate after the first node.
+      // Install its node methods with the other methods, independent of timing.
+      Object.keys(nodeCooperateMethods).forEach(item => {
+        proto[item] = nodeCooperateMethods[item]
+      })
       // 拖拽调整节点宽度
       Object.keys(nodeModifyWidthMethods).forEach(item => {
         proto[item] = nodeModifyWidthMethods[item]
