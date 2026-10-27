@@ -1,6 +1,11 @@
 import * as Y from 'yjs'
 import { WebrtcProvider } from 'y-webrtc'
 import {
+  applyMindMap,
+  readMindMap,
+  mindMapScope
+} from './cooperateDocument.mjs'
+import {
   isSameObject,
   simpleDeepClone,
   getType,
@@ -15,7 +20,11 @@ class Cooperate {
     this.opt = opt
     this.mindMap = opt.mindMap
     // yjs文档
-    this.ydoc = new Y.Doc()
+    this.options = opt.pluginOpt || {}
+    this.ydoc = this.options.document || new Y.Doc()
+    this.localOrigin = {}
+    this.applyingRemote = false
+    this.onObserve = this.onObserve.bind(this)
     // 共享数据
     this.ymap = null
     // 连接提供者
@@ -28,8 +37,6 @@ class Cooperate {
     this.currentData = null
     // 用户信息
     this.userInfo = null
-    // 是否正在重新设置思维导图数据
-    this.isSetData = false
     // 绑定事件
     this.bindEvent()
     // 处理实例化时传入的思维导图数据
@@ -40,22 +47,55 @@ class Cooperate {
 
   // 初始化数据
   initData(data) {
-    data = simpleDeepClone(data)
-    // 解绑原来的数据
-    if (this.ymap) {
-      this.ymap.unobserve(this.onObserve)
+    if (this.ymap) this.ymap.unobserveDeep(this.onObserve)
+    this.ymap = mindMapScope(Y, this.ydoc)
+    if (!this.ymap.has('nodes')) {
+      // External providers must finish their initial sync before attaching.
+      if (this.options.document) throw new Error('uninitialized_mindmap')
+      applyMindMap(Y, this.ydoc, { after: { root: simpleDeepClone(data) } })
     }
-    // 创建共享数据
-    this.ymap = this.ydoc.getMap()
-    // 思维导图树结构转平级对象结构
-    this.currentData = transformTreeDataToObject(data)
-    // 将思维导图数据添加到共享数据中
-    Object.keys(this.currentData).forEach(uid => {
-      this.ymap.set(uid, this.currentData[uid])
-    })
-    // 监听数据同步
-    this.onObserve = this.onObserve.bind(this)
-    this.ymap.observe(this.onObserve)
+    const initial = readMindMap(Y, this.ydoc)
+    this.currentDocument =
+      this.options.onDocument?.(simpleDeepClone(initial)) || initial
+    this.currentData = transformTreeDataToObject(this.currentDocument.root)
+    this.ymap.observeDeep(this.onObserve)
+    if (!this.undoManager) {
+      this.undoManager = new Y.UndoManager(this.ymap, {
+        trackedOrigins: new Set([this.localOrigin])
+      })
+      this.originalHistoryCommands = {
+        BACK: this.mindMap.command.commands.BACK,
+        FORWARD: this.mindMap.command.commands.FORWARD
+      }
+      const history = direction => {
+        if (this.mindMap.opt.readonly) return
+        this.mindMap.renderer.textEdit.hideEditTextBox()
+        this.mindMap.command.originAddHistory()
+        this.undoManager.stopCapturing()
+        this.undoManager[direction]()
+      }
+      this.mindMap.command.commands.BACK = [() => history('undo')]
+      this.mindMap.command.commands.FORWARD = [() => history('redo')]
+      this.historyChanged = () => {
+        if (this.emittingHistory || this.historyQueued) return
+        this.historyQueued = true
+        queueMicrotask(() => {
+          this.historyQueued = false
+          if (!this.undoManager) return
+          this.emittingHistory = true
+          const undo = this.undoManager.undoStack.length
+          this.mindMap.emit(
+            'back_forward',
+            undo,
+            undo + this.undoManager.redoStack.length + 1
+          )
+          this.emittingHistory = false
+        })
+      }
+      this.mindMap.on('back_forward', this.historyChanged)
+      this.undoManager.on('stack-item-added', this.historyChanged)
+      this.undoManager.on('stack-item-popped', this.historyChanged)
+    }
   }
 
   // 获取yjs doc实例
@@ -101,88 +141,105 @@ class Cooperate {
   // 解绑事件
   unBindEvent() {
     if (this.ymap) {
-      this.ymap.unobserve(this.onObserve)
+      this.ymap.unobserveDeep(this.onObserve)
     }
     this.mindMap.off('data_change', this.onDataChange)
     this.mindMap.off('node_active', this.onNodeActive)
     this.mindMap.off('node_tree_render_end', this.onNodeTreeRenderEnd)
     this.mindMap.off('set_data', this.onSetData)
-    this.ydoc.destroy()
+    this.mindMap.off('back_forward', this.historyChanged)
+    if (this.originalHistoryCommands)
+      Object.assign(this.mindMap.command.commands, this.originalHistoryCommands)
+    this.awareness?.off('change', this.onAwareness)
+    this.undoManager?.destroy()
+    this.undoManager = null
+    if (!this.options.document) this.ydoc.destroy()
   }
 
   // 数据同步时的处理，更新当前思维导图
-  onObserve(event) {
-    const data = event.target.toJSON()
-    // 如果数据没有改变直接返回
-    if (isSameObject(data, this.currentData)) return
-    this.currentData = data
-    // 平级对象转树结构
-    const res = transformObjectToTreeData(data)
-    if (!res) return
-    // 更新思维导图画布
-    this.mindMap.updateData(res)
-  }
-
-  // 当前思维导图改变后的处理，触发同步
-  onDataChange(data) {
-    if (this.isSetData) {
-      this.isSetData = false
-      return
+  onObserve(events, transaction) {
+    if (transaction.origin === this.localOrigin) return
+    this.applyingRemote = true
+    try {
+      const shared = readMindMap(Y, this.ydoc)
+      const document =
+        this.options.onDocument?.(simpleDeepClone(shared)) || shared
+      if (isSameObject(document, this.currentDocument)) return
+      const previous = this.currentDocument
+      this.currentDocument = document
+      this.currentData = transformTreeDataToObject(document.root)
+      if (document.layout && document.layout !== this.mindMap.getLayout())
+        this.mindMap.setLayout(document.layout, true)
+      if (
+        document.theme?.template &&
+        document.theme.template !== previous.theme?.template
+      )
+        this.mindMap.setTheme(document.theme.template, true)
+      if (
+        document.theme?.config &&
+        !isSameObject(document.theme.config, previous.theme?.config)
+      )
+        this.mindMap.setThemeConfig(document.theme.config, true)
+      this.mindMap.updateData(document.root)
+    } finally {
+      this.applyingRemote = false
     }
-    const res = transformTreeDataToObject(data)
-    this.updateChanges(res)
   }
 
-  // 找出更新点
+  onDataChange(data) {
+    if (!data || this.applyingRemote || this.mindMap.opt.readonly) return
+    this.updateChanges(transformTreeDataToObject(data))
+  }
+
+  // Keep the official data_change -> flat diff -> shared update lifecycle.
   updateChanges(data) {
-    const { beforeCooperateUpdate } = this.mindMap.opt
-    const oldData = this.currentData
-    this.currentData = data
-    this.ydoc.transact(() => {
-      // 找出新增的或修改的
-      const createOrUpdateList = []
-      Object.keys(data).forEach(uid => {
-        // 新增的或已经存在的，如果数据发生了改变
-        if (!oldData[uid] || !isSameObject(oldData[uid], data[uid])) {
-          createOrUpdateList.push({
-            uid,
-            data: data[uid],
-            oldData: oldData[uid]
-          })
-        }
-      })
-      if (beforeCooperateUpdate && createOrUpdateList.length > 0) {
-        beforeCooperateUpdate({
-          type: 'createOrUpdate',
-          list: createOrUpdateList,
-          data
+    const beforeCooperateUpdate = this.mindMap.opt.beforeCooperateUpdate
+    if (beforeCooperateUpdate) {
+      const changed = Object.keys(data)
+        .filter(uid => !isSameObject(data[uid], this.currentData[uid]))
+        .map(uid => ({ uid, data: data[uid], oldData: this.currentData[uid] }))
+      const removed = Object.keys(this.currentData)
+        .filter(uid => !data[uid])
+        .map(uid => ({ uid, data: this.currentData[uid] }))
+      if (changed.length) {
+        beforeCooperateUpdate({ type: 'createOrUpdate', list: changed, data })
+        changed.forEach(item => {
+          data[item.uid] = item.data
         })
       }
-      createOrUpdateList.forEach(item => {
-        this.ymap.set(item.uid, item.data)
-      })
-      // 找出删除的
-      const deleteList = []
-      Object.keys(oldData).forEach(uid => {
-        if (!data[uid]) {
-          deleteList.push({ uid, data: oldData[uid] })
-        }
-      })
-      if (beforeCooperateUpdate && deleteList.length > 0) {
-        beforeCooperateUpdate({
-          type: 'delete',
-          list: deleteList
-        })
-      }
-      deleteList.forEach(item => {
-        this.ymap.delete(item.uid)
-      })
+      if (removed.length)
+        beforeCooperateUpdate({ type: 'delete', list: removed })
+    }
+    const root = transformObjectToTreeData(data)
+    this.syncDocument({ ...this.currentDocument, root })
+  }
+
+  syncDocument(document) {
+    if (
+      this.applyingRemote ||
+      this.mindMap.opt.readonly ||
+      isSameObject(document, this.currentDocument)
+    )
+      return
+    const before = this.currentDocument
+    this.currentDocument = simpleDeepClone(document)
+    this.currentData = transformTreeDataToObject(document.root)
+    this.undoManager.stopCapturing()
+    applyMindMap(Y, this.ydoc, {
+      before,
+      after: document,
+      origin: this.localOrigin
     })
+    this.undoManager.stopCapturing()
   }
 
   // 节点激活状态改变后触发感知数据同步
   onNodeActive(node, nodeList) {
-    if (this.userInfo) {
+    if (this.options.onPresence) {
+      this.options.onPresence(nodeList.map(item => item.uid))
+      return
+    }
+    if (this.userInfo && this.awareness) {
       this.awareness.setLocalStateField(this.userInfo.name, {
         // 用户信息
         userInfo: {
@@ -209,8 +266,8 @@ class Cooperate {
 
   // 监听思维导图数据的重新设置事件
   onSetData(data) {
-    this.isSetData = true
-    this.initData(data)
+    // set_data is a native edit, never an instruction to re-seed a live room.
+    this.onDataChange(data)
   }
 
   // 设置用户信息
@@ -239,8 +296,9 @@ class Cooperate {
         const userName = Object.keys(value)[0]
         if (!userName) return
         const data = value[userName]
-        const userInfo = data.userInfo
-        const nodeIdList = data.nodeIdList
+        const userInfo = value.user || data?.userInfo
+        const nodeIdList = value.mindmap?.nodeIds || data?.nodeIdList
+        if (!userInfo || !Array.isArray(nodeIdList)) return
         nodeIdList.forEach(uid => {
           const node = this.mindMap.renderer.findNodeByUid(uid)
           callback(uid, node, userInfo)
@@ -259,7 +317,7 @@ class Cooperate {
     this.waitNodeUidMap = {}
     walk(data, (uid, node, userInfo) => {
       // 不显示自己
-      if (userInfo.id === this.userInfo.id) return
+      if (userInfo.id === this.userInfo?.id) return
       if (node) {
         node.addUser(userInfo)
       } else {

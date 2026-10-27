@@ -1,3 +1,9 @@
+import * as Y from 'yjs'
+import Cooperate from 'simple-mind-map/src/plugins/Cooperate'
+import {
+  readMindMap,
+  initializeMindMap
+} from 'simple-mind-map/src/plugins/cooperateDocument.mjs'
 import Vue from 'vue'
 import App from './App.vue'
 import router from './router'
@@ -30,6 +36,12 @@ const initApp = () => {
 
 // 是否处于接管应用模式
 if (window.takeOverApp) {
+  window.flashyunMindMapCollaboration = {
+    Y,
+    Cooperate,
+    readMindMap,
+    initializeMindMap
+  }
   window.initApp = initApp
   window.$bus = bus
 } else {

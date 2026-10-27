@@ -9,6 +9,7 @@ module.exports = {
   outputDir: '../dist',
   lintOnSave: false,
   productionSourceMap: false,
+  parallel: 2,
   filenameHashing: false,
   transpileDependencies: ['yjs', 'lib0', 'quill'],
   chainWebpack: config => {
@@ -34,8 +35,11 @@ module.exports = {
   },
   configureWebpack: {
     resolve: {
+      modules: [path.resolve(__dirname, 'node_modules'), 'node_modules'],
       alias: {
-        '@': path.resolve(__dirname, './src/')
+        '@': path.resolve(__dirname, './src/'),
+        'simple-mind-map': path.resolve(__dirname, '../simple-mind-map'),
+        yjs: path.resolve(__dirname, './node_modules/yjs')
       }
     }
   },
