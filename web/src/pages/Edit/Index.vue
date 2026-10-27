@@ -76,7 +76,9 @@ export default {
 }
 
 body {
+  color-scheme: light;
   &.isDark {
+    color-scheme: dark;
     /* el-button */
     .el-button {
       background-color: #363b3f;

@@ -5,6 +5,7 @@
     :style="style"
     :class="{ isDark: isDark }"
     @click.stop.passive
+    @mousedown.prevent
     v-show="showRichTextToolbar"
   >
     <el-tooltip :content="$t('richTextToolbar.bold')" placement="top">
@@ -43,16 +44,30 @@
       </div>
     </el-tooltip>
 
-    <el-tooltip :content="$t('richTextToolbar.fontFamily')" placement="top">
-      <el-popover placement="bottom" trigger="hover">
-        <div class="fontOptionsList" :class="{ isDark: isDark }">
+    <el-tooltip
+      :content="$t('richTextToolbar.fontFamily')"
+      placement="top"
+      :disabled="openPopover === 'font'"
+    >
+      <el-popover
+        ref="font"
+        placement="bottom-start"
+        trigger="click"
+        :value="openPopover === 'font'"
+        @input="setPopover('font', $event)"
+      >
+        <div
+          class="fontOptionsList customScrollbar"
+          :class="{ isDark: isDark }"
+          :style="{ maxHeight: menuMaxHeight + 'px' }"
+        >
           <div
             class="fontOptionItem"
             v-for="item in fontFamilyList"
             :key="item.value"
-            :style="{ fontFamily: item.value }"
             :class="{ active: formatInfo.font === item.value }"
             @click="changeFontFamily(item.value)"
+            @mousedown.prevent
           >
             {{ item.name }}
           </div>
@@ -63,9 +78,23 @@
       </el-popover>
     </el-tooltip>
 
-    <el-tooltip :content="$t('richTextToolbar.fontSize')" placement="top">
-      <el-popover placement="bottom" trigger="hover">
-        <div class="fontOptionsList" :class="{ isDark: isDark }">
+    <el-tooltip
+      :content="$t('richTextToolbar.fontSize')"
+      placement="top"
+      :disabled="openPopover === 'size'"
+    >
+      <el-popover
+        ref="size"
+        placement="bottom-start"
+        trigger="click"
+        :value="openPopover === 'size'"
+        @input="setPopover('size', $event)"
+      >
+        <div
+          class="fontOptionsList customScrollbar"
+          :class="{ isDark: isDark }"
+          :style="{ maxHeight: menuMaxHeight + 'px' }"
+        >
           <div
             class="fontOptionItem"
             v-for="item in fontSizeList"
@@ -76,6 +105,7 @@
             }"
             :class="{ active: formatInfo.size === item + 'px' }"
             @click="changeFontSize(item)"
+            @mousedown.prevent
           >
             {{ item }}px
           </div>
@@ -86,8 +116,18 @@
       </el-popover>
     </el-tooltip>
 
-    <el-tooltip :content="$t('richTextToolbar.color')" placement="top">
-      <el-popover placement="bottom" trigger="hover">
+    <el-tooltip
+      :content="$t('richTextToolbar.color')"
+      placement="top"
+      :disabled="openPopover === 'color'"
+    >
+      <el-popover
+        ref="color"
+        placement="bottom-start"
+        trigger="click"
+        :value="openPopover === 'color'"
+        @input="setPopover('color', $event)"
+      >
         <Color :color="fontColor" @change="changeFontColor"></Color>
         <div class="btn" slot="reference" :style="{ color: formatInfo.color }">
           <span class="icon iconfont iconzitiyanse"></span>
@@ -97,9 +137,16 @@
 
     <el-tooltip
       :content="$t('richTextToolbar.backgroundColor')"
+      :disabled="openPopover === 'background'"
       placement="top"
     >
-      <el-popover placement="bottom" trigger="hover">
+      <el-popover
+        ref="background"
+        placement="bottom-start"
+        trigger="click"
+        :value="openPopover === 'background'"
+        @input="setPopover('background', $event)"
+      >
         <Color
           :color="fontBackgroundColor"
           @change="changeFontBackgroundColor"
@@ -110,15 +157,30 @@
       </el-popover>
     </el-tooltip>
 
-    <el-tooltip :content="$t('richTextToolbar.textAlign')" placement="top">
-      <el-popover placement="bottom" trigger="hover">
-        <div class="fontOptionsList" :class="{ isDark: isDark }">
+    <el-tooltip
+      :content="$t('richTextToolbar.textAlign')"
+      placement="top"
+      :disabled="openPopover === 'align'"
+    >
+      <el-popover
+        ref="align"
+        placement="bottom-start"
+        trigger="click"
+        :value="openPopover === 'align'"
+        @input="setPopover('align', $event)"
+      >
+        <div
+          class="fontOptionsList customScrollbar"
+          :class="{ isDark: isDark }"
+          :style="{ maxHeight: menuMaxHeight + 'px' }"
+        >
           <div
             class="fontOptionItem"
             v-for="item in alignList"
             :key="item.value"
             :class="{ active: formatInfo.align === item.value }"
             @click="changeTextAlign(item.value)"
+            @mousedown.prevent
           >
             {{ item.name }}
           </div>
@@ -161,7 +223,9 @@ export default {
       },
       fontColor: '',
       fontBackgroundColor: '',
-      formatInfo: {}
+      formatInfo: {},
+      openPopover: null,
+      menuMaxHeight: 256
     }
   },
   computed: {
@@ -185,15 +249,64 @@ export default {
   },
   beforeDestroy() {
     this.$bus.$off('rich_text_selection_change', this.onRichTextSelectionChange)
+    this.$refs.richTextToolbar.remove()
   },
   methods: {
+    setPopover(name, visible) {
+      if (!visible) {
+        if (this.openPopover === name) this.openPopover = null
+        return
+      }
+      const popover = this.$refs[name]
+      const reference = popover.referenceElm.getBoundingClientRect()
+      const style = getComputedStyle(popover.$refs.popper)
+      const chrome =
+        [
+          'paddingTop',
+          'paddingBottom',
+          'borderTopWidth',
+          'borderBottomWidth'
+        ].reduce((sum, key) => sum + (parseFloat(style[key]) || 0), 0) +
+        Math.max(
+          parseFloat(style.marginTop) || 0,
+          parseFloat(style.marginBottom) || 0
+        )
+      const available = Math.max(
+        reference.top,
+        window.innerHeight - reference.bottom
+      )
+      this.menuMaxHeight = Math.max(0, Math.min(256, available - chrome - 8))
+      this.openPopover = name
+      this.$nextTick(() => popover.updatePopper())
+    },
+
     onRichTextSelectionChange(hasRange, rect, formatInfo) {
       if (hasRange) {
         this.style.left = rect.left + rect.width / 2 + 'px'
         this.style.top = rect.top - 60 + 'px'
         this.formatInfo = { ...(formatInfo || {}) }
+        this.$nextTick(() => {
+          if (!this.showRichTextToolbar) return
+          const toolbar = this.$refs.richTextToolbar.getBoundingClientRect()
+          const left = Math.max(
+            toolbar.width / 2 + 8,
+            Math.min(
+              window.innerWidth - toolbar.width / 2 - 8,
+              rect.left + rect.width / 2
+            )
+          )
+          const above = rect.top - toolbar.height - 8
+          const top = above >= 8 ? above : rect.bottom + 8
+          this.style.left = left + 'px'
+          this.style.top =
+            Math.max(
+              8,
+              Math.min(window.innerHeight - toolbar.height - 8, top)
+            ) + 'px'
+        })
       }
       this.showRichTextToolbar = hasRange
+      if (!hasRange) this.openPopover = null
     },
 
     toggleBold() {
@@ -225,6 +338,7 @@ export default {
     },
 
     changeFontFamily(font) {
+      this.openPopover = null
       this.formatInfo.font = font
       this.mindMap.richText.formatText({
         font
@@ -232,6 +346,7 @@ export default {
     },
 
     changeFontSize(size) {
+      this.openPopover = null
       this.formatInfo.size = size
       this.mindMap.richText.formatText({
         size: size + 'px'
@@ -253,6 +368,7 @@ export default {
     },
 
     changeTextAlign(align) {
+      this.openPopover = null
       this.formatInfo.align = align
       this.mindMap.richText.formatText({
         align
@@ -270,14 +386,20 @@ export default {
 .richTextToolbar {
   position: fixed;
   z-index: 2000;
-  height: 55px;
+  width: max-content;
+  max-width: calc(100vw - 16px);
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
   box-shadow: 0 2px 16px 0 rgba(0, 0, 0, 0.06);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   transform: translateX(-50%);
+
+  > * {
+    flex: 0 0 auto;
+  }
 
   &.isDark {
     background: #363b3f;
@@ -318,7 +440,11 @@ export default {
 }
 
 .fontOptionsList {
-  width: 150px;
+  width: 200px;
+  max-width: calc(100vw - 48px);
+  max-height: 256px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 
   &.isDark {
     .fontOptionItem {
@@ -336,6 +462,10 @@ export default {
     display: flex;
     align-items: center;
     cursor: pointer;
+    padding: 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 
     &:hover {
       background-color: #f7f7f7;

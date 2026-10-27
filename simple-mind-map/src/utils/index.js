@@ -1472,41 +1472,15 @@ export const getNodeListBoundingRect = (
   }
 }
 
-// 全屏事件检测
-const getOnfullscreEnevt = () => {
-  if (document.documentElement.requestFullScreen) {
-    return 'fullscreenchange'
-  } else if (document.documentElement.webkitRequestFullScreen) {
-    return 'webkitfullscreenchange'
-  } else if (document.documentElement.mozRequestFullScreen) {
-    return 'mozfullscreenchange'
-  } else if (document.documentElement.msRequestFullscreen) {
-    return 'msfullscreenchange'
-  }
-}
-export const fullscrrenEvent = getOnfullscreEnevt()
+// Standard Fullscreen API shared by the Web UI and presentation plugin.
+export const fullscrrenEvent = 'fullscreenchange'
 
-// 全屏
-export const fullScreen = element => {
-  if (element.requestFullScreen) {
-    element.requestFullScreen()
-  } else if (element.webkitRequestFullScreen) {
-    element.webkitRequestFullScreen()
-  } else if (element.mozRequestFullScreen) {
-    element.mozRequestFullScreen()
-  }
-}
+export const fullScreen = element => element.requestFullscreen()
 
 // 退出全屏
 export const exitFullScreen = () => {
   if (!document.fullscreenElement) return
-  if (document.exitFullscreen) {
-    document.exitFullscreen()
-  } else if (document.webkitExitFullscreen) {
-    document.webkitExitFullscreen()
-  } else if (document.mozCancelFullScreen) {
-    document.mozCancelFullScreen()
-  }
+  return document.exitFullscreen()
 }
 
 // 创建foreignObject节点

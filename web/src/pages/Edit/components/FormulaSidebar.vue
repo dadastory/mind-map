@@ -52,14 +52,15 @@ export default {
   },
   computed: {
     ...mapState({
-      activeSidebar: state => state.activeSidebar, 
-      isDark: state => state.localConfig.isDark, 
+      activeSidebar: state => state.activeSidebar,
+      isDark: state => state.localConfig.isDark,
       localConfig: state => state.localConfig
     })
   },
   watch: {
     activeSidebar(val) {
       if (val === 'formulaSidebar') {
+        if (!this.list.length) this.init()
         this.$refs.sidebar.show = true
       } else {
         this.$refs.sidebar.show = false
@@ -73,7 +74,7 @@ export default {
     this.$bus.$off('node_active', this.handleNodeActive)
   },
   mounted() {
-    this.init()
+    if (this.activeSidebar === 'formulaSidebar') this.init()
   },
   methods: {
     ...mapMutations(['setActiveSidebar']),

@@ -23,7 +23,6 @@
                 :key="item.value"
                 :label="item.name"
                 :value="item.value"
-                :style="{ fontFamily: item.value }"
               >
               </el-option>
             </el-select>

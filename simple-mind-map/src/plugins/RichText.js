@@ -179,7 +179,7 @@ class RichText {
 
   // 扩展字体列表
   extendFont(list = [], cover = false) {
-    fontFamilyList = cover ? [...list] : [...fontFamilyList, ...list]
+    fontFamilyList = [...new Set(cover ? list : [...fontFamilyList, ...list])]
 
     // 扩展quill的字体列表
     const FontAttributor = Quill.import('attributors/class/font')

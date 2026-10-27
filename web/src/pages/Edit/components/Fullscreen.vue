@@ -36,11 +36,11 @@ export default {
     return {}
   },
   created() {
-    document[fullscrrenEvent] = () => {
-      setTimeout(() => {
-        this.mindMap.resize()
-      }, 1000)
-    }
+    this.handleFullscreenChange = () => this.mindMap.resize()
+    document.addEventListener(fullscrrenEvent, this.handleFullscreenChange)
+  },
+  beforeDestroy() {
+    document.removeEventListener(fullscrrenEvent, this.handleFullscreenChange)
   },
   methods: {
     // 全屏查看
@@ -63,7 +63,7 @@ export default {
 
   &.isDark {
     .btn {
-      color: hsla(0,0%,100%,.6);
+      color: hsla(0, 0%, 100%, 0.6);
     }
   }
 
